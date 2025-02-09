@@ -28,34 +28,29 @@ public class MainActivity extends AppCompatActivity {
         EdgeToEdge.enable(this);
         setContentView(R.layout.activity_main);
 
-        // Устанавливаем отступы для системных панелей
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main), (v, insets) -> {
             Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
             return insets;
         });
 
-        // Инициализируем WebView
         mainWeb = findViewById(R.id.mainWeb);
-        mainWeb.getSettings().setJavaScriptEnabled(true); // Включаем поддержку JavaScript
-        mainWeb.getSettings().setAllowFileAccess(true); // Разрешаем доступ к файлам
-        mainWeb.getSettings().setDomStorageEnabled(true); // Включаем поддержку DOM Storage
+        mainWeb.getSettings().setJavaScriptEnabled(true);
+        mainWeb.getSettings().setAllowFileAccess(true);
+        mainWeb.getSettings().setDomStorageEnabled(true);
 
-        // Устанавливаем пользовательский User-Agent для обхода защиты Cloudflare
         mainWeb.getSettings().setUserAgentString("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36");
 
         mainWeb.setWebViewClient(new WebViewClient() {
             @Override
             public void onPageStarted(WebView view, String url, Bitmap favicon) {
                 super.onPageStarted(view, url, favicon);
-                // Логирование или действия при старте загрузки
                 Log.d(TAG, "Page started loading: " + url);
             }
 
             @Override
             public void onReceivedHttpError(WebView view, WebResourceRequest request, WebResourceResponse errorResponse) {
                 super.onReceivedHttpError(view, request, errorResponse);
-                // Логирование ошибок HTTP
                 Log.e(TAG, "HTTP error: " + errorResponse.getStatusCode());
             }
 
@@ -100,7 +95,6 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        // Загружаем веб-страницу
         mainWeb.loadUrl("https://journal.top-academy.ru/");
     }
 }
