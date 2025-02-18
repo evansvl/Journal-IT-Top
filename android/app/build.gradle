@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "com.evansvl.journal_it_top"
+    namespace = "com.example.journal_it_top"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -41,4 +41,8 @@ android {
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    implementation 'androidx.appcompat:appcompat:1.2.0'
 }

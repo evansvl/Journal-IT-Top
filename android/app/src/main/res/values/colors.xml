@@ -1,0 +1,8 @@
+<resources>
+    <color name="colorPrimary">#FF0000</color> <!-- Red -->
+    <color name="colorPrimaryDark">#B20000</color> <!-- Dark Red -->
+    <color name="colorAccent">#FFFFFF</color> <!-- White -->
+
+    <color name="colorBlack">#000000</color> <!-- Black -->
+    <color name="colorWhite">#FFFFFF</color> <!-- White -->
+</resources>
