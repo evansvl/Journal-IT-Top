@@ -36,7 +36,6 @@ class _LoginPageState extends State<LoginPage> {
       'referer': 'https://journal.top-academy.ru/',
       'user-agent':
           'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36 Edg/133.0.0.0',
-      // Дополнительные заголовки, если необходимо
     };
 
     final payload = {
@@ -46,7 +45,6 @@ class _LoginPageState extends State<LoginPage> {
       'username': _usernameController.text,
     };
 
-    // Логируем запрос
     print('Request URL: $url');
     print('Request Headers: $headers');
     print('Request Payload: ${jsonEncode(payload)}');
@@ -57,7 +55,6 @@ class _LoginPageState extends State<LoginPage> {
       body: jsonEncode(payload),
     );
 
-    // Логируем ответ
     print('Response Status: ${response.statusCode}');
     print('Response Body: ${response.body}');
 
