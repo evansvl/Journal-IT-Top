@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'profile.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -41,13 +42,23 @@ class _LoginPageState extends State<LoginPage> {
       body: jsonEncode(payload),
     );
 
-    print('Response Status: ${response.statusCode}');
-    print('Response Body: ${response.body}');
-
     if (response.statusCode == 200) {
-      print('Request was successful');
+      final responseBody = jsonDecode(response.body);
+      final authToken = responseBody['access_token'];
+      if (authToken != null) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => ProfilePage()),
+        );
+      } else {
+        // ignore: avoid_print
+        print('Auth token not found');
+      }
     } else {
+      // ignore: avoid_print
       print('Failed request with status: ${response.statusCode}');
+      // ignore: avoid_print
+      print('Response Body: ${response.body}');
     }
   }
 
