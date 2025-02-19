@@ -120,48 +120,58 @@ class _LoginPageState extends State<LoginPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text('Journal'), centerTitle: true),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            TextField(
-              controller: _usernameController,
-              decoration: InputDecoration(labelText: 'Логин'),
-            ),
-            TextField(
-              controller: _passwordController,
-              obscureText: _obscureText,
-              decoration: InputDecoration(
-                labelText: 'Пароль',
-                suffixIcon: IconButton(
-                  icon: Icon(
-                    _obscureText ? Icons.visibility : Icons.visibility_off,
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 40.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: _usernameController,
+                decoration: InputDecoration(labelText: 'Логин'),
+              ),
+              TextField(
+                controller: _passwordController,
+                obscureText: _obscureText,
+                decoration: InputDecoration(
+                  labelText: 'Пароль',
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _obscureText ? Icons.visibility : Icons.visibility_off,
+                    ),
+                    onPressed: _togglePasswordVisibility,
                   ),
-                  onPressed: _togglePasswordVisibility,
                 ),
               ),
-            ),
-            SizedBox(height: 20),
-            Row(
-              children: [
-                Checkbox(
-                  value: _rememberPassword,
-                  onChanged: _toggleRememberPassword,
-                ),
-                Text('Remember Password'),
-              ],
-            ),
-            SizedBox(height: 20),
-            ElevatedButton(onPressed: _login, child: Text('Вход')),
-            if (_errorMessage != null) ...[
               SizedBox(height: 20),
-              Text(
-                _errorMessage!,
-                style: TextStyle(color: Colors.red),
-                textAlign: TextAlign.center,
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(left: 0),
+                    child: Checkbox(
+                      value: _rememberPassword,
+                      onChanged: _toggleRememberPassword,
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: () => _toggleRememberPassword(!_rememberPassword),
+                    child: Text('Запомнить пароль', textAlign: TextAlign.left),
+                  ),
+                ],
               ),
+              SizedBox(height: 20),
+              ElevatedButton(onPressed: _login, child: Text('Вход')),
+              if (_errorMessage != null) ...[
+                SizedBox(height: 20),
+                Text(
+                  _errorMessage!,
+                  style: TextStyle(color: Colors.red),
+                  textAlign: TextAlign.center,
+                ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
