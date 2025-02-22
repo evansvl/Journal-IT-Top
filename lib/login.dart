@@ -95,11 +95,29 @@ class _LoginPageState extends State<LoginPage> {
       final authToken = responseBody['access_token'];
       if (authToken != null) {
         await _saveCredentials();
-        Navigator.pushReplacement(
-          // ignore: use_build_context_synchronously
-          context,
-          MaterialPageRoute(builder: (context) => ProfilePage()),
+
+        final getUrl = Uri.parse(
+          'https://proxy.evansvl.ru:8444/api/v2/settings/user-info',
         );
+        final getHeaders = {...headers, 'Authorization': 'Bearer $authToken'};
+        final getResponse = await http.get(getUrl, headers: getHeaders);
+        print('GET Response Status: ${getResponse.statusCode}');
+        print('GET Response Body: ${getResponse.body}');
+
+        if (getResponse.statusCode == 200) {
+          final userInfo = jsonDecode(getResponse.body);
+          Navigator.pushReplacement(
+            // ignore: use_build_context_synchronously
+            context,
+            MaterialPageRoute(
+              builder: (context) => ProfilePage(userInfo: userInfo),
+            ),
+          );
+        } else {
+          setState(() {
+            _errorMessage = 'Failed to fetch user info';
+          });
+        }
       } else {
         setState(() {
           _errorMessage = 'Auth token not found';
