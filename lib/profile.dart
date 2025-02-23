@@ -37,29 +37,21 @@ class ProfilePage extends StatelessWidget {
                     children: [
                       Row(
                         children: [
-                          Text('ТопМани: $totalPoints'),
+                          Text('$totalPoints'),
                           SizedBox(width: 10),
                           Image.asset(
                             'assets/images/top-money.png',
                             width: 24,
                             height: 24,
                           ),
-                        ],
-                      ),
-                      Row(
-                        children: [
-                          Text('ТопКоины: $coins'),
+                          Text('$coins'),
                           SizedBox(width: 10),
                           Image.asset(
                             'assets/images/top-coin.png',
                             width: 24,
                             height: 24,
                           ),
-                        ],
-                      ),
-                      Row(
-                        children: [
-                          Text('ТопГемы: $gems'),
+                          Text('$gems'),
                           SizedBox(width: 10),
                           Image.asset(
                             'assets/images/top-gem.png',
