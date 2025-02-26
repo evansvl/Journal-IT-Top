@@ -101,7 +101,9 @@ class _LoginPageState extends State<LoginPage> {
         );
         final getHeaders = {...headers, 'Authorization': 'Bearer $authToken'};
         final getResponse = await http.get(getUrl, headers: getHeaders);
+        // ignore: avoid_print
         print('GET Response Status: ${getResponse.statusCode}');
+        // ignore: avoid_print
         print('GET Response Body: ${getResponse.body}');
 
         if (getResponse.statusCode == 200) {

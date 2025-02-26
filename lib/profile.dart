@@ -29,40 +29,52 @@ class ProfilePage extends StatelessWidget {
           padding: EdgeInsets.zero,
           children: <Widget>[
             DrawerHeader(
-              decoration: BoxDecoration(color: Colors.blue),
-              child: Row(
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Text('$totalPoints'),
-                          SizedBox(width: 10),
-                          Image.asset(
-                            'assets/images/top-money.png',
-                            width: 24,
-                            height: 24,
-                          ),
-                          Text('$coins'),
-                          SizedBox(width: 10),
-                          Image.asset(
-                            'assets/images/top-coin.png',
-                            width: 24,
-                            height: 24,
-                          ),
-                          Text('$gems'),
-                          SizedBox(width: 10),
-                          Image.asset(
-                            'assets/images/top-gem.png',
-                            width: 24,
-                            height: 24,
-                          ),
-                        ],
-                      ),
-                    ],
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.transparent),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    spreadRadius: 5,
+                    blurRadius: 7,
+                    offset: Offset(0, 3),
                   ),
                 ],
+              ),
+              child: Container(
+                child: Row(
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Text('$totalPoints'),
+                            SizedBox(width: 10),
+                            Image.asset(
+                              'assets/images/top-money.png',
+                              width: 24,
+                              height: 24,
+                            ),
+                            Text(' $coins'),
+                            SizedBox(width: 10),
+                            Image.asset(
+                              'assets/images/top-coin.png',
+                              width: 24,
+                              height: 24,
+                            ),
+                            Text(' $gems'),
+                            SizedBox(width: 10),
+                            Image.asset(
+                              'assets/images/top-gem.png',
+                              width: 24,
+                              height: 24,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
             ListTile(
