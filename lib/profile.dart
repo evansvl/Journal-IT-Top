@@ -91,14 +91,12 @@ class _ProfilePageState extends State<ProfilePage> {
     int expiredHW =
         (widget.homeworkData[2] as Map<String, dynamic>)['counter'] as int;
 
-    final latestProgress =
-        widget.progressData.isNotEmpty
-            ? widget.progressData.last
-            : {'points': 0};
-    final latestAttendance =
-        widget.attendanceData.isNotEmpty
-            ? widget.attendanceData.last
-            : {'points': 0};
+    final latestProgress = widget.progressData.isNotEmpty
+        ? widget.progressData.last
+        : {'points': 0};
+    final latestAttendance = widget.attendanceData.isNotEmpty
+        ? widget.attendanceData.last
+        : {'points': 0};
 
     int avgGrade = latestProgress['points'] as int;
     int attendance = latestAttendance['points'] as int;
@@ -106,30 +104,24 @@ class _ProfilePageState extends State<ProfilePage> {
     int groupTop = (widget.groupLeaderData['studentPosition'] as int?) ?? 0;
     int streamTop = (widget.streamLeaderData['studentPosition'] as int?) ?? 0;
 
-    String groupName =
-        widget.leaderGroupData.isNotEmpty
-            ? widget.leaderGroupData[0]['full_name']?.toString() ?? 'N/A'
-            : 'N/A';
-    int groupAmount =
-        widget.leaderGroupData.isNotEmpty
-            ? (widget.leaderGroupData[0]['amount'] as int?) ?? 0
-            : 0;
-    int groupPosition =
-        widget.leaderGroupData.isNotEmpty
-            ? (widget.leaderGroupData[0]['position'] as int?) ?? 0
-            : 0;
-    String streamName =
-        widget.leaderStreamData.isNotEmpty
-            ? widget.leaderStreamData[0]['full_name']?.toString() ?? 'N/A'
-            : 'N/A';
-    int streamAmount =
-        widget.leaderStreamData.isNotEmpty
-            ? (widget.leaderStreamData[0]['amount'] as int?) ?? 0
-            : 0;
-    int streamPosition =
-        widget.leaderStreamData.isNotEmpty
-            ? (widget.leaderStreamData[0]['position'] as int?) ?? 0
-            : 0;
+    String groupName = widget.leaderGroupData.isNotEmpty
+        ? widget.leaderGroupData[0]['full_name']?.toString() ?? 'N/A'
+        : 'N/A';
+    int groupAmount = widget.leaderGroupData.isNotEmpty
+        ? (widget.leaderGroupData[0]['amount'] as int?) ?? 0
+        : 0;
+    int groupPosition = widget.leaderGroupData.isNotEmpty
+        ? (widget.leaderGroupData[0]['position'] as int?) ?? 0
+        : 0;
+    String streamName = widget.leaderStreamData.isNotEmpty
+        ? widget.leaderStreamData[0]['full_name']?.toString() ?? 'N/A'
+        : 'N/A';
+    int streamAmount = widget.leaderStreamData.isNotEmpty
+        ? (widget.leaderStreamData[0]['amount'] as int?) ?? 0
+        : 0;
+    int streamPosition = widget.leaderStreamData.isNotEmpty
+        ? (widget.leaderStreamData[0]['position'] as int?) ?? 0
+        : 0;
 
     List<Map<String, dynamic>> groupLeaders = [];
     for (var leader in widget.leaderGroupData) {
@@ -156,13 +148,12 @@ class _ProfilePageState extends State<ProfilePage> {
       appBar: AppBar(
         title: Text(widget.userInfo['full_name'] ?? 'Profile Page'),
         leading: Builder(
-          builder:
-              (context) => IconButton(
-                icon: Icon(Icons.menu),
-                onPressed: () {
-                  Scaffold.of(context).openDrawer();
-                },
-              ),
+          builder: (context) => IconButton(
+            icon: Icon(Icons.menu),
+            onPressed: () {
+              Scaffold.of(context).openDrawer();
+            },
+          ),
         ),
       ),
       drawer: Drawer(
@@ -230,11 +221,10 @@ class _ProfilePageState extends State<ProfilePage> {
                   Navigator.push(
                     context,
                     MaterialPageRoute<void>(
-                      builder:
-                          (BuildContext context) => SchedulePage(
-                            initialSchedule: scheduleData,
-                            authToken: widget.userInfo['token'],
-                          ),
+                      builder: (BuildContext context) => SchedulePage(
+                        initialSchedule: scheduleData,
+                        authToken: widget.userInfo['authToken'],
+                      ),
                     ),
                   );
                 }
@@ -467,10 +457,9 @@ class _ProfilePageState extends State<ProfilePage> {
                               horizontal: 20,
                               vertical: 10,
                             ),
-                            itemCount:
-                                isGroupTab
-                                    ? groupLeaders.length
-                                    : streamLeaders.length,
+                            itemCount: isGroupTab
+                                ? groupLeaders.length
+                                : streamLeaders.length,
                             itemBuilder: (context, index) {
                               // Replace the dashes Text widget with a Container
                               if (!isGroupTab && index == 3) {
@@ -489,10 +478,9 @@ class _ProfilePageState extends State<ProfilePage> {
                               // Skip the actual 4th place data in stream tab
                               final actualIndex =
                                   !isGroupTab && index > 4 ? index - 1 : index;
-                              final leader =
-                                  isGroupTab
-                                      ? groupLeaders[index]
-                                      : streamLeaders[actualIndex];
+                              final leader = isGroupTab
+                                  ? groupLeaders[index]
+                                  : streamLeaders[actualIndex];
 
                               // Return normal list item
                               return Container(
@@ -522,8 +510,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                         ),
                                         ConstrainedBox(
                                           constraints: BoxConstraints(
-                                            maxWidth:
-                                                MediaQuery.of(
+                                            maxWidth: MediaQuery.of(
                                                   context,
                                                 ).size.width *
                                                 0.5,
