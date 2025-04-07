@@ -69,7 +69,7 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   Future<void> _login() async {
-    final url = Uri.parse('https://proxy.evansvl.ru:8444/api/v2/auth/login');
+    final url = Uri.parse('https://msapi.top-academy.ru/api/v2/auth/login');
     final headers = {
       'Content-Type': 'application/json',
       'authority': 'msapi.top-academy.ru',
@@ -97,7 +97,7 @@ class _LoginPageState extends State<LoginPage> {
         await _saveCredentials();
 
         final getUrl = Uri.parse(
-          'https://proxy.evansvl.ru:8444/api/v2/settings/user-info',
+          'https://msapi.top-academy.ru/api/v2/settings/user-info',
         );
         final getHeaders = {...headers, 'Authorization': 'Bearer $authToken'};
         final getResponse = await http.get(getUrl, headers: getHeaders);
@@ -108,13 +108,155 @@ class _LoginPageState extends State<LoginPage> {
 
         if (getResponse.statusCode == 200) {
           final userInfo = jsonDecode(getResponse.body);
-          Navigator.pushReplacement(
-            // ignore: use_build_context_synchronously
-            context,
-            MaterialPageRoute(
-              builder: (context) => ProfilePage(userInfo: userInfo),
-            ),
+
+          final homeworkUrl = Uri.parse(
+            'https://msapi.top-academy.ru/api/v2/count/homework',
           );
+          final homeworkResponse = await http.get(
+            homeworkUrl,
+            headers: getHeaders,
+          );
+          // ignore: avoid_print
+          print('Homework Response Status: ${homeworkResponse.statusCode}');
+          // ignore: avoid_print
+          print('Homework Response Body: ${homeworkResponse.body}');
+
+          if (homeworkResponse.statusCode == 200) {
+            final homeworkData = jsonDecode(homeworkResponse.body);
+
+            // Get average progress data
+            final progressUrl = Uri.parse(
+              'https://msapi.top-academy.ru/api/v2/dashboard/chart/average-progress',
+            );
+            final progressResponse = await http.get(
+              progressUrl,
+              headers: getHeaders,
+            );
+            // ignore: avoid_print
+            print('Progress Response Status: ${progressResponse.statusCode}');
+            // ignore: avoid_print
+            print('Progress Response Body: ${progressResponse.body}');
+
+            // Get attendance data
+            final attendanceUrl = Uri.parse(
+              'https://msapi.top-academy.ru/api/v2/dashboard/chart/attendance',
+            );
+            final attendanceResponse = await http.get(
+              attendanceUrl,
+              headers: getHeaders,
+            );
+            // ignore: avoid_print
+            print(
+              'Attendance Response Status: ${attendanceResponse.statusCode}',
+            );
+            // ignore: avoid_print
+            print('Attendance Response Body: ${attendanceResponse.body}');
+
+            // Add after the attendance request and before the navigation
+
+            // Get group leaderboard data
+            final groupLeaderUrl = Uri.parse(
+              'https://msapi.top-academy.ru/api/v2/dashboard/progress/leader-group-points',
+            );
+            final groupLeaderResponse = await http.get(
+              groupLeaderUrl,
+              headers: getHeaders,
+            );
+            // ignore: avoid_print
+            print(
+              'Group Leader Response Status: ${groupLeaderResponse.statusCode}',
+            );
+            // ignore: avoid_print
+            print('Group Leader Response Body: ${groupLeaderResponse.body}');
+
+            // Get stream leaderboard data
+            final streamLeaderUrl = Uri.parse(
+              'https://msapi.top-academy.ru/api/v2/dashboard/progress/leader-stream-points',
+            );
+            final streamLeaderResponse = await http.get(
+              streamLeaderUrl,
+              headers: getHeaders,
+            );
+            // ignore: avoid_print
+            print(
+              'Stream Leader Response Status: ${streamLeaderResponse.statusCode}',
+            );
+            // ignore: avoid_print
+            print('Stream Leader Response Body: ${streamLeaderResponse.body}');
+
+            // Add after the stream leader request and before the navigation check
+
+            // Get leader stream data
+            final leaderStreamUrl = Uri.parse(
+              'https://msapi.top-academy.ru/api/v2/dashboard/progress/leader-stream',
+            );
+            final leaderStreamResponse = await http.get(
+              leaderStreamUrl,
+              headers: getHeaders,
+            );
+            // ignore: avoid_print
+            print(
+              'Leader Stream Response Status: ${leaderStreamResponse.statusCode}',
+            );
+            // ignore: avoid_print
+            print('Leader Stream Response Body: ${leaderStreamResponse.body}');
+
+            // Get leader group data
+            final leaderGroupUrl = Uri.parse(
+              'https://msapi.top-academy.ru/api/v2/dashboard/progress/leader-group',
+            );
+            final leaderGroupResponse = await http.get(
+              leaderGroupUrl,
+              headers: getHeaders,
+            );
+            // ignore: avoid_print
+            print(
+              'Leader Group Response Status: ${leaderGroupResponse.statusCode}',
+            );
+            // ignore: avoid_print
+            print('Leader Group Response Body: ${leaderGroupResponse.body}');
+
+            // Update the success condition check and data passing
+            if (progressResponse.statusCode == 200 &&
+                attendanceResponse.statusCode == 200 &&
+                groupLeaderResponse.statusCode == 200 &&
+                streamLeaderResponse.statusCode == 200 &&
+                leaderStreamResponse.statusCode == 200 &&
+                leaderGroupResponse.statusCode == 200) {
+              final progressData = jsonDecode(progressResponse.body);
+              final attendanceData = jsonDecode(attendanceResponse.body);
+              final groupLeaderData = jsonDecode(groupLeaderResponse.body);
+              final streamLeaderData = jsonDecode(streamLeaderResponse.body);
+              final leaderStreamData = jsonDecode(leaderStreamResponse.body);
+              final leaderGroupData = jsonDecode(leaderGroupResponse.body);
+
+              Navigator.pushReplacement(
+                // ignore: use_build_context_synchronously
+                context,
+                MaterialPageRoute(
+                  builder:
+                      (context) => ProfilePage(
+                        userInfo: userInfo,
+                        homeworkData: homeworkData,
+                        progressData: progressData,
+                        attendanceData: attendanceData,
+                        groupLeaderData: groupLeaderData,
+                        streamLeaderData: streamLeaderData,
+                        leaderStreamData: leaderStreamData,
+                        leaderGroupData: leaderGroupData,
+                      ),
+                ),
+              );
+            } else {
+              setState(() {
+                _errorMessage = 'Failed to fetch all required data';
+              });
+            }
+          } else {
+            setState(() {
+              _errorMessage = 'Failed to fetch homework data';
+            });
+          }
         } else {
           setState(() {
             _errorMessage = 'Failed to fetch user info';
