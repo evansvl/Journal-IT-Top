@@ -88,7 +88,7 @@ class _SchedulePageState extends State<SchedulePage> {
         initialDate: selectedDate,
         firstDate: DateTime(2024),
         lastDate: DateTime(2025),
-        locale: const Locale('en', 'US'), // Add locale
+        locale: const Locale('ru', 'RU'), // Add locale
       );
       if (picked != null && picked != selectedDate) {
         setState(() {
