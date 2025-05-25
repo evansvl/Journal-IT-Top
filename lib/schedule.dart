@@ -79,10 +79,8 @@ class _SchedulePageState extends State<SchedulePage> {
         widget.allLessonVisitsFuture,
       ]);
 
-      // Явное приведение типов
-      final homework = results[0] as List<HomeworkItem>?; // <--- ИЗМЕНЕНИЕ
-      final visitsAndMarks =
-          results[1] as List<LessonVisitMark>?; // <--- ИЗМЕНЕНИЕ
+      final homework = results[0] as List<HomeworkItem>?;
+      final visitsAndMarks = results[1] as List<LessonVisitMark>?;
 
       if (mounted) {
         setState(() {
@@ -111,7 +109,6 @@ class _SchedulePageState extends State<SchedulePage> {
   void _updateScheduleLessonsWithAdditionalData() {
     List<Map<String, dynamic>> currentLessonsAsRaw = [];
     for (var lesson in _scheduleLessons) {
-      // Используем текущие _scheduleLessons для сохранения данных
       currentLessonsAsRaw.add({
         'date': DateFormat('yyyy-MM-dd').format(lesson.dateTime),
         'lesson': lesson.lessonNumber,
@@ -122,8 +119,7 @@ class _SchedulePageState extends State<SchedulePage> {
         'room_name': lesson.roomName,
       });
     }
-    // Если _scheduleLessons был пуст (например, при первой загрузке или ошибке),
-    // а initialSchedule не пуст, используем initialSchedule
+
     if (currentLessonsAsRaw.isEmpty &&
         widget.initialSchedule.isNotEmpty &&
         _loadedHomework != null &&
@@ -240,18 +236,27 @@ class _SchedulePageState extends State<SchedulePage> {
 
         if (isRelevantDate) {
           if (hw.status == 3 || hw.status == 0) {
+            // Текущее или Просрочено (но еще может быть актуально к показу)
             if (bestMatch == null ||
-                (bestMatch.status != 3 && bestMatch.status != 0) ||
+                (bestMatch.status != 3 &&
+                    bestMatch.status !=
+                        0) || // Если текущее лучше, чем не (текущее и не просроченное)
                 (hwCreationDate.isAfter(bestMatch.creationDateTime) &&
-                    hw.status == 3) ||
+                    hw.status == 3) || // Более новое текущее
                 (hw.status == 3 && bestMatch.status == 0)) {
+              // Текущее лучше просроченного
               bestMatch = hw;
             }
           } else if (bestMatch == null && (hw.status == 1 || hw.status == 2)) {
+            // Проверено или Сдано (если другого нет)
             bestMatch = hw;
           } else if (bestMatch != null &&
-              (bestMatch.status != 3 && bestMatch.status != 0) &&
+              (bestMatch.status != 3 &&
+                  bestMatch.status !=
+                      0) && // Если текущий bestMatch не приоритетный
               (hw.status == 1 || hw.status == 2)) {
+            // А новое ДЗ - проверено или сдано
+            // Предпочитаем более позднее по дате сдачи
             if (hw.completionDateTime.isAfter(bestMatch.completionDateTime)) {
               bestMatch = hw;
             }
@@ -274,8 +279,6 @@ class _SchedulePageState extends State<SchedulePage> {
     }
     return null;
   }
-
-  // Future<void> _launchUrlInApp(String urlString) async { ... }
 
   Future<void> _selectDateFromPicker(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
@@ -355,11 +358,46 @@ class _SchedulePageState extends State<SchedulePage> {
           ]));
         }
 
+        // Информация о посещении (добавлено сюда)
+        if (visitMark != null) {
+          String visitStatusText;
+          Color visitStatusColor;
+          switch (visitMark.statusWas) {
+            case 0:
+              visitStatusText = "Отсутствовал(а)";
+              visitStatusColor = Colors.red;
+              break;
+            case 1:
+              visitStatusText = "Присутствовал(а)";
+              visitStatusColor = Colors.green;
+              break;
+            case 2:
+              visitStatusText = "Опоздал(а)";
+              visitStatusColor = Colors.orange;
+              break;
+            default:
+              visitStatusText = "Статус неизвестен";
+              visitStatusColor = Colors.grey;
+          }
+          detailsWidgets.add(const SizedBox(height: 10));
+          detailsWidgets.add(Row(children: [
+            Icon(Icons.event_available_outlined,
+                size: 16, color: Colors.grey[700]),
+            const SizedBox(width: 8),
+            Text("Посещение: ",
+                style: TextStyle(fontSize: 16, color: Colors.grey[700])),
+            Text(visitStatusText,
+                style: TextStyle(
+                    fontSize: 16,
+                    color: visitStatusColor,
+                    fontWeight: FontWeight.bold)),
+          ]));
+        }
+
         detailsWidgets.add(const Divider(height: 30, thickness: 1));
 
         // Отображение ДЗ
         if (_areAdditionalDataLoading && _loadedHomework == null) {
-          // Если ДЗ еще грузятся
           detailsWidgets.add(const Text('Домашнее задание:',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)));
           detailsWidgets.add(const SizedBox(height: 8));
@@ -369,7 +407,6 @@ class _SchedulePageState extends State<SchedulePage> {
             Text("Загрузка ДЗ...")
           ]));
         } else if (_additionalDataError && _loadedHomework == null) {
-          // Ошибка загрузки ДЗ
           detailsWidgets.add(const Text('Домашнее задание:',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)));
           detailsWidgets.add(const SizedBox(height: 8));
@@ -385,7 +422,6 @@ class _SchedulePageState extends State<SchedulePage> {
             ),
           );
         } else if (homework != null) {
-          // ДЗ загружены и есть для этого урока
           detailsWidgets.add(const Text('Домашнее задание:',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)));
           detailsWidgets.add(const SizedBox(height: 8));
@@ -419,16 +455,7 @@ class _SchedulePageState extends State<SchedulePage> {
                     fontWeight: FontWeight.bold,
                     color: _getHomeworkStatusColor(homework.status))),
           ));
-          // if (homework.filePath != null && homework.filePath!.isNotEmpty) {
-          //   detailsWidgets.add(ElevatedButton.icon(
-          //     icon: const Icon(Icons.download_for_offline_outlined, size: 20),
-          //     label: const Text('Файл задания'),
-          //     onPressed: () { /* _launchUrlInApp(homework.filePath!); */ }, // _launchUrlInApp закомментирован
-          //     style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 38)),
-          //   ));
-          // }
         } else if (_loadedHomework != null) {
-          // ДЗ загружены, но для этого урока нет
           detailsWidgets.add(const Text('Домашнее задание:',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)));
           detailsWidgets.add(const SizedBox(height: 8));
@@ -493,7 +520,6 @@ class _SchedulePageState extends State<SchedulePage> {
             ));
           }
         } else if (_loadedVisitsAndMarks != null) {
-          // Оценки загружены, но для этого урока нет
           detailsWidgets.add(const Text('Оценки за занятие:',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)));
           detailsWidgets.add(const SizedBox(height: 8));
@@ -532,7 +558,7 @@ class _SchedulePageState extends State<SchedulePage> {
                         borderRadius: BorderRadius.circular(10)),
                   ),
                 ),
-                ...detailsWidgets, // Вставляем все собранные виджеты
+                ...detailsWidgets,
               ],
             ),
           ),
@@ -561,7 +587,7 @@ class _SchedulePageState extends State<SchedulePage> {
   Color _getMarkColor(int mark) {
     if (mark >= 4) return Colors.green;
     if (mark == 3) return Colors.orange;
-    if (mark <= 2 && mark >= 1) return Colors.red; // Включая 1
+    if (mark <= 2 && mark >= 1) return Colors.red;
     return Colors.black;
   }
 
@@ -726,6 +752,20 @@ class _SchedulePageState extends State<SchedulePage> {
                               final lesson = _scheduleLessons[index];
                               List<Widget> lessonMarksWidgets = [];
 
+                              // Определение цвета фона карточки
+                              Color? cardBackgroundColor;
+                              if (lesson.visitMarkData != null) {
+                                switch (lesson.visitMarkData!.statusWas) {
+                                  case 0: // Не был
+                                    cardBackgroundColor = Colors.red[100];
+                                    break;
+                                  case 2: // Опоздал
+                                    cardBackgroundColor = Colors.orange[100];
+                                    break;
+                                  // case 1: // Был - фон остается стандартным
+                                }
+                              }
+
                               if (lesson.visitMarkData != null &&
                                   lesson.visitMarkData!.hasAnyMark) {
                                 for (var entry
@@ -741,7 +781,6 @@ class _SchedulePageState extends State<SchedulePage> {
                                               color: Colors.black87)),
                                       backgroundColor:
                                           _getMarkColor(entry.value)
-                                              // ignore: deprecated_member_use
                                               .withOpacity(0.15),
                                       padding: const EdgeInsets.symmetric(
                                           horizontal: 5, vertical: 1),
@@ -753,7 +792,6 @@ class _SchedulePageState extends State<SchedulePage> {
                                 }
                               } else if (_areAdditionalDataLoading &&
                                   _loadedVisitsAndMarks == null) {
-                                // Маленький индикатор загрузки оценок для карточки
                                 lessonMarksWidgets.add(const SizedBox(
                                     width: 10,
                                     height: 10,
@@ -762,6 +800,8 @@ class _SchedulePageState extends State<SchedulePage> {
                               }
 
                               return Card(
+                                color:
+                                    cardBackgroundColor, // <--- ПРИМЕНЯЕМ ЦВЕТ ЗДЕСЬ
                                 elevation: 1.0,
                                 margin: const EdgeInsets.only(bottom: 10.0),
                                 shape: RoundedRectangleBorder(
