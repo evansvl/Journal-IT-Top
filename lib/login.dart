@@ -1,11 +1,12 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'profile.dart';
 import 'package:journal_it_top/services/api_service.dart';
 import 'package:journal_it_top/models/homework_item.dart';
-import 'package:journal_it_top/models/lesson_visit_mark.dart'; // Импорт
+import 'package:journal_it_top/models/lesson_visit_mark.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -14,7 +15,7 @@ class LoginPage extends StatefulWidget {
   State<LoginPage> createState() => _LoginPageState();
 }
 
-class _LoginPageState extends State<LoginPage> {
+class _LoginPageState extends State<LoginPage> with WidgetsBindingObserver {
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _obscureText = true;
@@ -25,7 +26,30 @@ class _LoginPageState extends State<LoginPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadSavedCredentials();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _usernameController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    // ignore: avoid_print
+    print('AppLifecycleState changed to: $state for LoginPage');
+    if (state == AppLifecycleState.resumed) {
+      if (mounted) {
+        // ignore: avoid_print
+        print('LoginPage resumed, forcing UI refresh if needed.');
+        setState(() {});
+      }
+    }
   }
 
   void _togglePasswordVisibility() {
@@ -48,15 +72,18 @@ class _LoginPageState extends State<LoginPage> {
     final savedPassword = prefs.getString('saved_password');
     final rememberPassword = prefs.getBool('remember_password') ?? false;
 
-    setState(() {
-      _rememberPassword = rememberPassword;
-      if (savedUsername != null) {
-        _usernameController.text = savedUsername;
-      }
-      if (rememberPassword && savedPassword != null) {
-        _passwordController.text = savedPassword;
-      }
-    });
+    if (mounted) {
+      // Проверка mounted перед setState
+      setState(() {
+        _rememberPassword = rememberPassword;
+        if (savedUsername != null) {
+          _usernameController.text = savedUsername;
+        }
+        if (rememberPassword && savedPassword != null) {
+          _passwordController.text = savedPassword;
+        }
+      });
+    }
   }
 
   Future<void> _saveCredentials() async {
@@ -71,10 +98,12 @@ class _LoginPageState extends State<LoginPage> {
 
   Future<void> _login() async {
     if (_isLoading) return;
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
+    }
 
     final url = Uri.parse('https://msapi.top-academy.ru/api/v2/auth/login');
     final baseHeadersForLogin = {
@@ -97,6 +126,8 @@ class _LoginPageState extends State<LoginPage> {
         headers: baseHeadersForLogin,
         body: jsonEncode(payload),
       );
+
+      if (!mounted) return; // Проверка после await
 
       if (response.statusCode == 200) {
         final responseBody = jsonDecode(response.body);
@@ -124,9 +155,8 @@ class _LoginPageState extends State<LoginPage> {
 
           // ignore: avoid_print
           print("Starting to fetch all lesson visits/marks in background...");
-          final Future<List<LessonVisitMark>> allLessonVisitsFuture = apiService
-              .fetchLessonVisitsAndMarks() // TODO: Добавить параметры даты, если нужно
-              .catchError((error) {
+          final Future<List<LessonVisitMark>> allLessonVisitsFuture =
+              apiService.fetchLessonVisitsAndMarks().catchError((error) {
             // ignore: avoid_print
             print("Error fetching lesson visits/marks in background: $error");
             if (mounted) {
@@ -172,6 +202,8 @@ class _LoginPageState extends State<LoginPage> {
                 headers: dataHeadersWithToken),
           ]);
 
+          if (!mounted) return; // Проверка после await
+
           bool allRequestsSuccessful = true;
           for (var res in results) {
             if (res.statusCode != 200) {
@@ -179,12 +211,11 @@ class _LoginPageState extends State<LoginPage> {
               // ignore: avoid_print
               print(
                   'Error in data request: ${res.request?.url} - ${res.statusCode} - ${res.body}');
-              if (mounted) {
-                setState(() {
-                  _errorMessage =
-                      'Ошибка загрузки данных профиля (код: ${res.statusCode})';
-                });
-              }
+              setState(() {
+                // mounted уже проверен
+                _errorMessage =
+                    'Ошибка загрузки данных профиля (код: ${res.statusCode})';
+              });
               break;
             }
           }
@@ -209,55 +240,51 @@ class _LoginPageState extends State<LoginPage> {
               return [];
             }
 
-            if (mounted) {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => ProfilePage(
-                    authToken: authToken,
-                    userInfo: userInfo,
-                    homeworkData: parseList(homeworkRaw),
-                    progressData: parseList(progressRaw),
-                    attendanceData: parseList(attendanceRaw),
-                    groupLeaderData: groupLeaderData,
-                    streamLeaderData: streamLeaderData,
-                    leaderStreamData: parseList(leaderStreamRaw),
-                    leaderGroupData: parseList(leaderGroupRaw),
-                    allHomeworkFuture: allHomeworkFuture,
-                    allLessonVisitsFuture: allLessonVisitsFuture,
-                  ),
+            // mounted уже проверен
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => ProfilePage(
+                  authToken: authToken,
+                  userInfo: userInfo,
+                  homeworkData: parseList(homeworkRaw),
+                  progressData: parseList(progressRaw),
+                  attendanceData: parseList(attendanceRaw),
+                  groupLeaderData: groupLeaderData,
+                  streamLeaderData: streamLeaderData,
+                  leaderStreamData: parseList(leaderStreamRaw),
+                  leaderGroupData: parseList(leaderGroupRaw),
+                  allHomeworkFuture: allHomeworkFuture,
+                  allLessonVisitsFuture: allLessonVisitsFuture,
                 ),
-              );
-            }
-          } else if (mounted &&
-              !allRequestsSuccessful &&
-              _errorMessage == null) {
+              ),
+            );
+          } else if (_errorMessage == null) {
+            // Если ошибка была, но _errorMessage не установлен
             setState(() {
+              // mounted уже проверен
               _errorMessage = 'Не удалось загрузить все данные пользователя.';
             });
           }
         } else {
-          if (mounted) {
-            setState(() {
-              _errorMessage = 'Токен авторизации не получен.';
-            });
-          }
-        }
-      } else if (response.statusCode == 422) {
-        if (mounted) {
           setState(() {
-            _errorMessage = 'Неверный логин или пароль.';
+            // mounted уже проверен
+            _errorMessage = 'Токен авторизации не получен.';
           });
         }
+      } else if (response.statusCode == 422) {
+        setState(() {
+          // mounted уже проверен
+          _errorMessage = 'Неверный логин или пароль.';
+        });
       } else {
         // ignore: avoid_print
         print('Login error: ${response.statusCode} - ${response.body}');
-        if (mounted) {
-          setState(() {
-            _errorMessage =
-                'Ошибка входа (код: ${response.statusCode}). Попробуйте позже.';
-          });
-        }
+        setState(() {
+          // mounted уже проверен
+          _errorMessage =
+              'Ошибка входа (код: ${response.statusCode}). Попробуйте позже.';
+        });
       }
     } catch (e) {
       // ignore: avoid_print

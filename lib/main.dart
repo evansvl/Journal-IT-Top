@@ -1,16 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // <--- ДОБАВИТЬ ЭТОТ ИМПОРТ
+import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'login.dart';
 
 void main() async {
-  // <--- СДЕЛАТЬ main АСИНХРОННОЙ
-  // Убедимся, что Flutter Engine инициализирован перед установкой ориентации
-  WidgetsFlutterBinding.ensureInitialized(); // <--- ОБЯЗАТЕЛЬНО ДОБАВИТЬ
+  WidgetsFlutterBinding.ensureInitialized();
 
-  // Устанавливаем предпочтительные ориентации
   await SystemChrome.setPreferredOrientations([
-    // <--- await, т.к. это Future
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
