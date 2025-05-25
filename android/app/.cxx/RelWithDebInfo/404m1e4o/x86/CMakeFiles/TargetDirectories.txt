@@ -1,0 +1,2 @@
+C:/Users/evansvl/Documents/GitHub/Journal-IT-Top/android/app/.cxx/RelWithDebInfo/404m1e4o/x86/CMakeFiles/edit_cache.dir
+C:/Users/evansvl/Documents/GitHub/Journal-IT-Top/android/app/.cxx/RelWithDebInfo/404m1e4o/x86/CMakeFiles/rebuild_cache.dir

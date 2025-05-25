@@ -4,8 +4,13 @@ import 'package:journal_it_top/schedule.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'login.dart';
+import 'package:journal_it_top/models/homework_item.dart';
+import 'package:journal_it_top/models/lesson_visit_mark.dart';
 
 class ProfilePage extends StatefulWidget {
+  final String authToken;
   final Map<String, dynamic> userInfo;
   final List<dynamic> homeworkData;
   final List<dynamic> progressData;
@@ -14,9 +19,12 @@ class ProfilePage extends StatefulWidget {
   final Map<String, dynamic> streamLeaderData;
   final List<dynamic> leaderStreamData;
   final List<dynamic> leaderGroupData;
+  final Future<List<HomeworkItem>> allHomeworkFuture;
+  final Future<List<LessonVisitMark>> allLessonVisitsFuture;
 
   const ProfilePage({
     super.key,
+    required this.authToken,
     required this.userInfo,
     required this.homeworkData,
     required this.progressData,
@@ -25,6 +33,8 @@ class ProfilePage extends StatefulWidget {
     required this.streamLeaderData,
     required this.leaderStreamData,
     required this.leaderGroupData,
+    required this.allHomeworkFuture,
+    required this.allLessonVisitsFuture,
   });
 
   @override
@@ -32,37 +42,180 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> {
-  bool isGroupTab = true;
+  bool _isGroupTab = true;
+
+  late int _coins, _gems, _totalPoints;
+  late int _currentHW, _onCheckHW, _checkedHW, _expiredHW, _allHWCounters;
+  late int _avgGradeValue, _attendanceValue;
+  late int _groupTopPosition, _streamTopPosition;
+  late List<Map<String, dynamic>> _groupLeaders;
+  late List<Map<String, dynamic>> _streamLeadersFiltered;
+
+  late String _userName;
+  late String _userAvatarLetter;
+  String? _userPhotoUrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _parseUserInfo();
+    _parseProfileData();
+  }
+
+  void _parseUserInfo() {
+    _userName = widget.userInfo['full_name'] as String? ?? 'Профиль';
+    _userAvatarLetter = _userName.isNotEmpty ? _userName[0].toUpperCase() : "П";
+    _userPhotoUrl = widget.userInfo['photo'] as String?;
+
+    if (_userPhotoUrl != null && _userPhotoUrl!.isEmpty) {
+      _userPhotoUrl = null;
+    }
+  }
+
+  void _parseProfileData() {
+    var gamingPointsList =
+        widget.userInfo['gaming_points'] as List<dynamic>? ?? [];
+    _coins = 0;
+    _gems = 0;
+    for (var pointData in gamingPointsList) {
+      if (pointData is Map<String, dynamic>) {
+        int typeId = pointData['new_gaming_point_types__id'] as int? ?? 0;
+        int points = pointData['points'] as int? ?? 0;
+        if (typeId == 1) {
+          _coins = points;
+        } else if (typeId == 2) {
+          _gems = points;
+        }
+      }
+    }
+    _totalPoints = _coins + _gems;
+
+    int getHWCcounter(List<dynamic> hwList, int index, String keyName) {
+      if (hwList.length > index && hwList[index] is Map<String, dynamic>) {
+        return (hwList[index] as Map<String, dynamic>)[keyName] as int? ?? 0;
+      }
+      return 0;
+    }
+
+    _checkedHW = getHWCcounter(widget.homeworkData, 0, 'counter');
+    _currentHW = getHWCcounter(widget.homeworkData, 1, 'counter');
+    _expiredHW = getHWCcounter(widget.homeworkData, 2, 'counter');
+    _onCheckHW = getHWCcounter(widget.homeworkData, 3, 'counter');
+    int returnedHW = getHWCcounter(widget.homeworkData, 4, 'counter');
+    _allHWCounters =
+        _checkedHW + _currentHW + _expiredHW + _onCheckHW + returnedHW;
+
+    _avgGradeValue =
+        widget.progressData.isNotEmpty && widget.progressData.last is Map
+            ? (widget.progressData.last['points'] as int? ?? 0)
+            : 0;
+    _attendanceValue =
+        widget.attendanceData.isNotEmpty && widget.attendanceData.last is Map
+            ? (widget.attendanceData.last['points'] as int? ?? 0)
+            : 0;
+
+    _groupTopPosition =
+        (widget.groupLeaderData['studentPosition'] as int?) ?? 0;
+    _streamTopPosition =
+        (widget.streamLeaderData['studentPosition'] as int?) ?? 0;
+
+    _groupLeaders =
+        (widget.leaderGroupData).map<Map<String, dynamic>>((leader) {
+      return {
+        'name': leader['full_name']?.toString() ?? 'N/A',
+        'amount': (leader['amount'] as int?) ?? 0,
+        'position': (leader['position'] as int?) ?? 0,
+      };
+    }).toList();
+
+    _streamLeadersFiltered = (widget.leaderStreamData)
+        .where((leader) =>
+            leader['id'] != null ||
+            leader['full_name'] != null ||
+            leader['amount'] != null)
+        .map<Map<String, dynamic>>((leader) {
+      return {
+        'name': leader['full_name']?.toString() ?? 'N/A',
+        'amount': (leader['amount'] as int?) ?? 0,
+        'position': (leader['position'] as int?) ?? 0,
+      };
+    }).toList();
+  }
 
   void _switchTab(bool isGroup) {
     setState(() {
-      isGroupTab = isGroup;
+      _isGroupTab = isGroup;
     });
   }
 
-  Future<List<dynamic>> _fetchSchedule(String date) async {
+  Future<List<dynamic>> _fetchScheduleForDate(String date) async {
     try {
       final scheduleUrl = Uri.parse(
         'https://msapi.top-academy.ru/api/v2/schedule/operations/get-by-date?date_filter=$date',
       );
+      // ignore: avoid_print
+      print(
+          'Fetching schedule (ProfilePage) for $date with token: ${widget.authToken.substring(0, 10)}...');
 
       final response = await http.get(
         scheduleUrl,
         headers: {
-          'Authorization': 'Bearer ${widget.userInfo['token']}',
+          'Authorization': 'Bearer ${widget.authToken}',
           'Content-Type': 'application/json',
+          'authority': 'msapi.top-academy.ru',
+          'origin': 'https://journal.top-academy.ru',
+          'referer': 'https://journal.top-academy.ru/',
         },
       );
 
+      // ignore: avoid_print
+      print('Schedule Response (ProfilePage): ${response.statusCode}');
+      if (response.statusCode != 200) {
+        // ignore: avoid_print
+        print('Schedule Response Body (ProfilePage): ${response.body}');
+      }
+
       if (response.statusCode == 200) {
         final jsonResponse = jsonDecode(response.body);
-        return jsonResponse['data'] ?? [];
+        if (jsonResponse is Map<String, dynamic> &&
+            jsonResponse.containsKey('data')) {
+          return List<dynamic>.from(jsonResponse['data'] ?? []);
+        } else if (jsonResponse is List) {
+          return List<dynamic>.from(jsonResponse);
+        }
+        return [];
       }
       return [];
     } catch (e) {
-      print('Error fetching schedule: $e');
+      // ignore: avoid_print
+      print('Error fetching schedule in ProfilePage: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Ошибка загрузки расписания: $e')),
+        );
+      }
       return [];
     }
+  }
+
+  Widget _buildDrawerPointsItem(String assetPath, int points,
+      {bool isTotal = false}) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Image.asset(assetPath,
+            width: isTotal ? 18 : 16, height: isTotal ? 18 : 16),
+        const SizedBox(width: 4),
+        Text(
+          '$points',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: isTotal ? 14 : 13,
+            fontWeight: isTotal ? FontWeight.bold : FontWeight.normal,
+          ),
+        ),
+      ],
+    );
   }
 
   @override
@@ -71,99 +224,15 @@ class _ProfilePageState extends State<ProfilePage> {
       const SystemUiOverlayStyle(
         systemNavigationBarColor: Colors.white,
         systemNavigationBarIconBrightness: Brightness.dark,
-        systemNavigationBarDividerColor: Colors.grey,
         statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.dark,
       ),
     );
 
-    int coins = widget.userInfo['gaming_points'][0]['points'] as int;
-    int gems = widget.userInfo['gaming_points'][1]['points'] as int;
-    int totalPoints = coins + gems;
-
-    int allHW =
-        (widget.homeworkData[5] as Map<String, dynamic>)['counter'] as int;
-    int checkedHW =
-        (widget.homeworkData[0] as Map<String, dynamic>)['counter'] as int;
-    int currentHW =
-        (widget.homeworkData[1] as Map<String, dynamic>)['counter'] as int;
-    int onCheckHW =
-        (widget.homeworkData[3] as Map<String, dynamic>)['counter'] as int;
-    int expiredHW =
-        (widget.homeworkData[2] as Map<String, dynamic>)['counter'] as int;
-
-    final latestProgress =
-        widget.progressData.isNotEmpty
-            ? widget.progressData.last
-            : {'points': 0};
-    final latestAttendance =
-        widget.attendanceData.isNotEmpty
-            ? widget.attendanceData.last
-            : {'points': 0};
-
-    int avgGrade = latestProgress['points'] as int;
-    int attendance = latestAttendance['points'] as int;
-
-    int groupTop = (widget.groupLeaderData['studentPosition'] as int?) ?? 0;
-    int streamTop = (widget.streamLeaderData['studentPosition'] as int?) ?? 0;
-
-    String groupName =
-        widget.leaderGroupData.isNotEmpty
-            ? widget.leaderGroupData[0]['full_name']?.toString() ?? 'N/A'
-            : 'N/A';
-    int groupAmount =
-        widget.leaderGroupData.isNotEmpty
-            ? (widget.leaderGroupData[0]['amount'] as int?) ?? 0
-            : 0;
-    int groupPosition =
-        widget.leaderGroupData.isNotEmpty
-            ? (widget.leaderGroupData[0]['position'] as int?) ?? 0
-            : 0;
-    String streamName =
-        widget.leaderStreamData.isNotEmpty
-            ? widget.leaderStreamData[0]['full_name']?.toString() ?? 'N/A'
-            : 'N/A';
-    int streamAmount =
-        widget.leaderStreamData.isNotEmpty
-            ? (widget.leaderStreamData[0]['amount'] as int?) ?? 0
-            : 0;
-    int streamPosition =
-        widget.leaderStreamData.isNotEmpty
-            ? (widget.leaderStreamData[0]['position'] as int?) ?? 0
-            : 0;
-
-    List<Map<String, dynamic>> groupLeaders = [];
-    for (var leader in widget.leaderGroupData) {
-      groupLeaders.add({
-        'name': leader['full_name']?.toString() ?? 'N/A',
-        'amount': (leader['amount'] as int?) ?? 0,
-        'position': (leader['position'] as int?) ?? 0,
-      });
-    }
-
-    List<Map<String, dynamic>> streamLeaders = [];
-    for (var leader in widget.leaderStreamData) {
-      streamLeaders.add({
-        'name': leader['full_name']?.toString() ?? 'N/A',
-        'amount': (leader['amount'] as int?) ?? 0,
-        'position': (leader['position'] as int?) ?? 0,
-      });
-    }
-
     return Scaffold(
-      backgroundColor: Colors.white,
-      resizeToAvoidBottomInset: true,
-      extendBody: false,
+      backgroundColor: Colors.grey[100],
       appBar: AppBar(
-        title: Text(widget.userInfo['full_name'] ?? 'Profile Page'),
-        leading: Builder(
-          builder:
-              (context) => IconButton(
-                icon: Icon(Icons.menu),
-                onPressed: () {
-                  Scaffold.of(context).openDrawer();
-                },
-              ),
-        ),
+        title: Text(_userName),
       ),
       drawer: Drawer(
         child: ListView(
@@ -171,403 +240,364 @@ class _ProfilePageState extends State<ProfilePage> {
           children: <Widget>[
             DrawerHeader(
               decoration: BoxDecoration(
-                border: Border.all(color: Colors.transparent),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
-                    spreadRadius: 5,
-                    blurRadius: 7,
-                    offset: Offset(0, 3),
-                  ),
-                ],
+                color: Theme.of(context).primaryColor,
               ),
-              child: Container(
-                child: Row(
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: <Widget>[
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      CircleAvatar(
+                        radius: 32,
+                        backgroundColor: Theme.of(context)
+                            .colorScheme
+                            .secondary
+                            .withAlpha((255 * 0.8).round()),
+                        backgroundImage:
+                            _userPhotoUrl != null && _userPhotoUrl!.isNotEmpty
+                                ? NetworkImage(_userPhotoUrl!)
+                                : null,
+                        child: (_userPhotoUrl == null || _userPhotoUrl!.isEmpty)
+                            ? Text(
+                                _userAvatarLetter,
+                                style: const TextStyle(
+                                    fontSize: 30.0,
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold),
+                              )
+                            : null,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            Text('$totalPoints'),
-                            SizedBox(width: 10),
-                            Image.asset(
-                              'assets/images/top-money.png',
-                              width: 24,
-                              height: 24,
-                            ),
-                            Text(' $coins'),
-                            SizedBox(width: 10),
-                            Image.asset(
-                              'assets/images/top-coin.png',
-                              width: 24,
-                              height: 24,
-                            ),
-                            Text(' $gems'),
-                            SizedBox(width: 10),
-                            Image.asset(
-                              'assets/images/top-gem.png',
-                              width: 24,
-                              height: 24,
+                            Text(
+                              _userName,
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.bold),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ],
                         ),
+                      ),
+                    ],
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8.0, bottom: 4.0),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.start,
+                      children: <Widget>[
+                        _buildDrawerPointsItem(
+                            'assets/images/top-money.png', _totalPoints,
+                            isTotal: true),
+                        const SizedBox(width: 16),
+                        _buildDrawerPointsItem(
+                            'assets/images/top-coin.png', _coins),
+                        const SizedBox(width: 16),
+                        _buildDrawerPointsItem(
+                            'assets/images/top-gem.png', _gems),
                       ],
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
             ListTile(
-              title: const Text('Schedule'),
+              leading: const Icon(Icons.calendar_today_outlined),
+              title: const Text('Расписание'),
               onTap: () async {
-                final String today = DateFormat(
-                  'yyyy-MM-dd',
-                ).format(DateTime.now());
-                final scheduleData = await _fetchSchedule(today);
+                if (!mounted) return;
+                final BuildContext localContext = context;
 
-                if (mounted) {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute<void>(
-                      builder:
-                          (BuildContext context) => SchedulePage(
-                            initialSchedule: scheduleData,
-                            authToken: widget.userInfo['token'],
-                          ),
+                Navigator.pop(localContext);
+
+                final String today =
+                    DateFormat('yyyy-MM-dd').format(DateTime.now());
+
+                if (!mounted) return;
+                showDialog(
+                  context: localContext,
+                  barrierDismissible: false,
+                  builder: (BuildContext dialogContext) {
+                    return const Center(child: CircularProgressIndicator());
+                  },
+                );
+
+                final scheduleData = await _fetchScheduleForDate(today);
+
+                if (!mounted) return;
+                Navigator.pop(localContext);
+
+                if (!mounted) return;
+                Navigator.push(
+                  localContext,
+                  MaterialPageRoute<void>(
+                    builder: (BuildContext pageRouteContext) => SchedulePage(
+                      initialSchedule: scheduleData,
+                      authToken: widget.authToken,
+                      allHomeworkFuture: widget.allHomeworkFuture,
+                      allLessonVisitsFuture: widget.allLessonVisitsFuture,
                     ),
-                  );
-                }
+                  ),
+                );
               },
             ),
+            const Divider(height: 1, thickness: 0.5),
             ListTile(
-              title: Text('Logout'),
+              leading: const Icon(Icons.logout_outlined),
+              title: const Text('Выход'),
               onTap: () {
-                // Handle logout tap
+                if (mounted) {
+                  Navigator.pop(context);
+                }
+                showDialog(
+                  context: context,
+                  builder: (BuildContext dialogContext) {
+                    return AlertDialog(
+                      title: const Text('Выход из аккаунта'),
+                      content: const Text('Вы уверены, что хотите выйти?'),
+                      actions: <Widget>[
+                        TextButton(
+                          child: const Text('Отмена'),
+                          onPressed: () {
+                            Navigator.of(dialogContext).pop();
+                          },
+                        ),
+                        TextButton(
+                          style:
+                              TextButton.styleFrom(foregroundColor: Colors.red),
+                          child: const Text('Выйти'),
+                          onPressed: () async {
+                            Navigator.of(dialogContext).pop();
+                            final prefs = await SharedPreferences.getInstance();
+                            await prefs.clear();
+                            if (mounted) {
+                              Navigator.of(context).pushAndRemoveUntil(
+                                  MaterialPageRoute(
+                                      builder: (ctx) => const LoginPage()),
+                                  (route) => false);
+                            }
+                          },
+                        ),
+                      ],
+                    );
+                  },
+                );
               },
             ),
           ],
         ),
       ),
-      drawerScrimColor: Colors.black.withOpacity(0.5),
-      drawerEdgeDragWidth: MediaQuery.of(context).size.width * 0.7,
       body: SafeArea(
-        bottom: true,
         child: Padding(
-          padding: EdgeInsets.all(20),
+          padding: const EdgeInsets.all(12.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Padding(padding: EdgeInsets.only(bottom: 8)),
-              Expanded(
-                flex: 3, // Set flex to 3
-                child: Container(
-                  margin: EdgeInsets.only(bottom: 20),
-                  decoration: BoxDecoration(
-                    color: Color.fromARGB(255, 231, 231, 231),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                'All Homework',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  color: Colors.black54,
-                                ),
-                              ),
-                              SizedBox(height: 8),
-                              Text(
-                                '$allHW',
-                                style: TextStyle(
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      Container(height: 110, width: 1, color: Colors.black26),
-                      Expanded(
+              _buildInfoCard(
+                title: "Домашние задания",
+                flex: 3,
+                childContent: Row(
+                  children: [
+                    Expanded(
+                      child: Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
+                            const Text('Всего Д/З',
+                                style: TextStyle(
+                                    fontSize: 15, color: Colors.black54)),
+                            const SizedBox(height: 8),
+                            Text('$_allHWCounters',
+                                style: const TextStyle(
+                                    fontSize: 22, fontWeight: FontWeight.bold)),
+                          ],
+                        ),
+                      ),
+                    ),
+                    Container(
+                        height: 80,
+                        width: 1,
+                        color: Colors.black12), // Уменьшена высота
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 4.0, horizontal: 4.0),
+                        child: Column(
+                          mainAxisAlignment:
+                              MainAxisAlignment.spaceEvenly, // Изменено
+                          children: [
                             Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                              mainAxisAlignment: MainAxisAlignment.spaceAround,
                               children: [
-                                _buildGridItem('Expired', expiredHW),
-                                _buildGridItem('Current', currentHW),
+                                _buildHomeworkGridItem(
+                                    'Просрочено', _expiredHW),
+                                _buildHomeworkGridItem('Актуально', _currentHW),
                               ],
                             ),
-                            SizedBox(height: 16),
                             Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                              mainAxisAlignment: MainAxisAlignment.spaceAround,
                               children: [
-                                _buildGridItem('On Check', onCheckHW),
-                                _buildGridItem('Checked', checkedHW),
+                                _buildHomeworkGridItem(
+                                    'На проверке', _onCheckHW),
+                                _buildHomeworkGridItem('Проверено', _checkedHW),
                               ],
                             ),
                           ],
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
-              Expanded(
-                flex: 3, // Set flex to 3
-                child: Container(
-                  margin: EdgeInsets.symmetric(vertical: 20),
-                  decoration: BoxDecoration(
-                    color: Color.fromARGB(255, 231, 231, 231),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Row(
-                    children: [
-                      // Statistics Column
-                      Expanded(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              'Statistics',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black87,
-                              ),
-                            ),
-                            SizedBox(height: 16),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Text(
-                                  'Average grade: ',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: Colors.black87,
-                                  ),
-                                ),
-                                Text(
-                                  '$avgGrade',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.bold,
-                                    color: _getGradeColor(avgGrade),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            SizedBox(height: 8),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Text(
-                                  'Attendance: ',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: Colors.black87,
-                                  ),
-                                ),
-                                Text(
-                                  '$attendance%',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.bold,
-                                    color: _getAttendanceColor(attendance),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                      // Vertical Divider
-                      Container(height: 80, width: 1, color: Colors.black26),
-                      // Leaderboard Column
-                      Expanded(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              'Leaderboard',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black87,
-                              ),
-                            ),
-                            SizedBox(height: 16),
-                            Text(
-                              'Group: $groupTop',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.black87,
-                              ),
-                            ),
-                            SizedBox(height: 8),
-                            Text(
-                              'Stream: $streamTop',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.black87,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
+              const SizedBox(height: 12),
+              _buildInfoCard(
+                title: "Успеваемость",
+                flex: 3,
+                childContent: Row(
+                  children: [
+                    Expanded(
+                      child: _buildMainStatsColumn('Статистика', [
+                        _buildMainStatRow('Средний балл: ', '$_avgGradeValue',
+                            _getStatGradeColor(_avgGradeValue)),
+                        _buildMainStatRow(
+                            'Посещаемость: ',
+                            '$_attendanceValue%',
+                            _getStatAttendanceColor(_attendanceValue)),
+                      ]),
+                    ),
+                    Container(height: 70, width: 1, color: Colors.black12),
+                    Expanded(
+                      child: _buildMainStatsColumn('Рейтинг', [
+                        _buildMainStatRow('В группе: ', '$_groupTopPosition'),
+                        _buildMainStatRow('В потоке: ', '$_streamTopPosition'),
+                      ]),
+                    ),
+                  ],
                 ),
               ),
-              Expanded(
-                flex: 7, // Set flex to 5 for 5/3 ratio compared to others
-                child: Container(
-                  margin: EdgeInsets.only(top: 20),
-                  decoration: BoxDecoration(
-                    color: Color.fromARGB(255, 231, 231, 231),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Column(
-                    children: [
-                      Padding(
-                        padding: EdgeInsets.only(top: 16),
-                        child: Text(
-                          'Leaderboard',
+              const SizedBox(height: 12),
+              _buildInfoCard(
+                flex: 7,
+                childContent: Column(
+                  children: [
+                    const Padding(
+                      padding: EdgeInsets.only(top: 16, bottom: 8),
+                      child: Text('Таблица лидеров',
                           style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black87,
-                          ),
-                        ),
-                      ),
-                      SizedBox(height: 16),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          _buildTab('Group', isGroupTab),
-                          SizedBox(width: 16),
-                          _buildTab('Stream', !isGroupTab),
-                        ],
-                      ),
-                      Expanded(
-                        child: Scrollbar(
-                          thickness: 6,
-                          radius: Radius.circular(3),
-                          thumbVisibility:
-                              true, // Makes the scrollbar always visible
-                          child: ListView.builder(
-                            padding: EdgeInsets.symmetric(
-                              horizontal: 20,
-                              vertical: 10,
-                            ),
-                            itemCount:
-                                isGroupTab
-                                    ? groupLeaders.length
-                                    : streamLeaders.length,
-                            itemBuilder: (context, index) {
-                              // Replace the dashes Text widget with a Container
-                              if (!isGroupTab && index == 3) {
-                                return Container(
-                                  padding: EdgeInsets.symmetric(vertical: 16),
-                                  child: Container(
+                              fontSize: 17,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87)),
+                    ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        _buildTabButton('Группа', _isGroupTab, true),
+                        const SizedBox(width: 16),
+                        _buildTabButton('Поток', !_isGroupTab, false),
+                      ],
+                    ),
+                    Expanded(
+                      child: Scrollbar(
+                        thickness: 5,
+                        radius: const Radius.circular(3),
+                        thumbVisibility: true,
+                        child: ListView.builder(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 8),
+                          itemCount: _isGroupTab
+                              ? _groupLeaders.length
+                              : _streamLeadersFiltered.length +
+                                  (_streamLeadersFiltered.length > 3 ? 1 : 0),
+                          itemBuilder: (context, index) {
+                            final currentLeaders = _isGroupTab
+                                ? _groupLeaders
+                                : _streamLeadersFiltered;
+
+                            if (!_isGroupTab &&
+                                currentLeaders.length > 3 &&
+                                index == 3) {
+                              return const Padding(
+                                padding: EdgeInsets.symmetric(vertical: 8.0),
+                                child: Divider(
                                     height: 1,
+                                    thickness: 0.5,
                                     color: Colors.black26,
-                                    margin: EdgeInsets.symmetric(
-                                      horizontal: 20,
-                                    ),
-                                  ),
-                                );
-                              }
-
-                              // Skip the actual 4th place data in stream tab
-                              final actualIndex =
-                                  !isGroupTab && index > 4 ? index - 1 : index;
-                              final leader =
-                                  isGroupTab
-                                      ? groupLeaders[index]
-                                      : streamLeaders[actualIndex];
-
-                              // Return normal list item
-                              return Container(
-                                padding: EdgeInsets.symmetric(vertical: 12),
-                                decoration: BoxDecoration(
-                                  border: Border(
-                                    bottom: BorderSide(
-                                      color: Colors.black12,
-                                      width: 1,
-                                    ),
-                                  ),
-                                ),
-                                child: Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    // Left side: position and name
-                                    Row(
-                                      children: [
-                                        Text(
-                                          '${leader['position']}. ',
-                                          style: TextStyle(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.bold,
-                                            color: Colors.black87,
-                                          ),
-                                        ),
-                                        ConstrainedBox(
-                                          constraints: BoxConstraints(
-                                            maxWidth:
-                                                MediaQuery.of(
-                                                  context,
-                                                ).size.width *
-                                                0.5,
-                                          ),
-                                          child: Text(
-                                            leader['name'],
-                                            style: TextStyle(
-                                              fontSize: 16,
-                                              color: Colors.black87,
-                                            ),
-                                            overflow: TextOverflow.ellipsis,
-                                            maxLines: 1,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    // Right side: amount and icon
-                                    Row(
-                                      children: [
-                                        Text(
-                                          '${leader['amount']}',
-                                          style: TextStyle(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.bold,
-                                            color: Colors.black87,
-                                          ),
-                                        ),
-                                        SizedBox(width: 8),
-                                        Image.asset(
-                                          'assets/images/top-money.png',
-                                          width: 20,
-                                          height: 20,
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
+                                    indent: 16,
+                                    endIndent: 16),
                               );
-                            },
-                          ),
+                            }
+
+                            final actualIndex = (!_isGroupTab &&
+                                    currentLeaders.length > 3 &&
+                                    index > 3)
+                                ? index - 1
+                                : index;
+
+                            if (actualIndex >= currentLeaders.length) {
+                              return const SizedBox.shrink();
+                            }
+
+                            final leader = currentLeaders[actualIndex];
+
+                            return Container(
+                              padding: const EdgeInsets.symmetric(
+                                  vertical: 10, horizontal: 4),
+                              decoration: BoxDecoration(
+                                border: Border(
+                                    bottom: BorderSide(
+                                        color: Colors.grey.shade200,
+                                        width: 0.5)),
+                              ),
+                              child: Row(
+                                children: [
+                                  SizedBox(
+                                    width: 30,
+                                    child: Text(
+                                      '${leader['position']}.',
+                                      style: const TextStyle(
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.black54),
+                                      textAlign: TextAlign.right,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Text(
+                                      leader['name'],
+                                      style: const TextStyle(
+                                          fontSize: 15, color: Colors.black87),
+                                      overflow: TextOverflow.ellipsis,
+                                      maxLines: 1,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    '${leader['amount']}',
+                                    style: const TextStyle(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.black87),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Image.asset('assets/images/top-money.png',
+                                      width: 18, height: 18),
+                                ],
+                              ),
+                            );
+                          },
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -577,70 +607,150 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget _buildGridItem(String title, int count) {
+  Widget _buildInfoCard(
+      {required int flex, required Widget childContent, String? title}) {
+    return Expanded(
+      flex: flex,
+      child: Container(
+        padding:
+            title != null ? const EdgeInsets.only(top: 12.0) : EdgeInsets.zero,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.withAlpha((255 * 0.15).round()),
+              spreadRadius: 1,
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (title != null)
+              Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+                child: Text(title,
+                    style: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87)),
+              ),
+            Expanded(child: childContent),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHomeworkGridItem(String title, int count) {
     Color countColor;
     switch (title) {
-      case 'Checked':
-        countColor = Color(0xFF4CAF50);
+      case 'Проверено':
+        countColor = const Color(0xFF4CAF50);
         break;
-      case 'Expired':
-        countColor = Color(0xFFEF5350);
+      case 'Просрочено':
+        countColor = const Color(0xFFEF5350);
         break;
-      case 'Current':
-        countColor = Color.fromARGB(255, 148, 93, 185);
+      case 'Актуально':
+        countColor = const Color(0xFF5C6BC0);
         break;
-      case 'On Check':
-        countColor = Color.fromARGB(255, 194, 166, 42);
+      case 'На проверке':
+        countColor = const Color(0xFFFFA726);
         break;
       default:
         countColor = Colors.black;
     }
-
     return Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        Text(title, style: TextStyle(fontSize: 14, color: Colors.black54)),
-        SizedBox(height: 8),
-        Text(
-          '$count',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: countColor,
-          ),
-        ),
+        Text(title,
+            style: const TextStyle(
+                fontSize: 11, color: Colors.black54)), // Уменьшен шрифт
+        const SizedBox(height: 3), // Уменьшен отступ
+        Text('$count',
+            style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: countColor)), // Уменьшен шрифт
       ],
     );
   }
 
-  Color _getGradeColor(int grade) {
-    if (grade >= 4) return Color(0xFF4CAF50);
-    if (grade >= 3) return Color(0xFFFDD835);
-    return Color(0xFFEF5350);
-  }
-
-  Color _getAttendanceColor(int attendance) {
-    if (attendance >= 90) return Color(0xFF4CAF50);
-    if (attendance >= 70) return Color(0xFFFDD835);
-    return Color(0xFFEF5350);
-  }
-
-  Widget _buildTab(String text, bool isActive) {
-    return GestureDetector(
-      onTap: () => _switchTab(text == 'Group'),
-      child: Container(
-        padding: EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-        decoration: BoxDecoration(
-          color: isActive ? Colors.white : Colors.transparent,
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Text(
-          text,
-          style: TextStyle(
-            color: isActive ? Colors.black87 : Colors.black54,
-            fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
-          ),
-        ),
+  Widget _buildMainStatsColumn(String title, List<Widget> statRows) {
+    return Padding(
+      padding: const EdgeInsets.all(12.0),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(title,
+              style: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87)),
+          const SizedBox(height: 12),
+          ...statRows,
+        ],
       ),
+    );
+  }
+
+  Widget _buildMainStatRow(String label, String value, [Color? valueColor]) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(label,
+              style: const TextStyle(fontSize: 13, color: Colors.black87)),
+          Text(value,
+              style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  color: valueColor ?? Colors.black87)),
+        ],
+      ),
+    );
+  }
+
+  Color _getStatGradeColor(int grade) {
+    if (grade >= 4) {
+      return const Color(0xFF4CAF50);
+    }
+    if (grade >= 3) {
+      return const Color(0xFFFFA000);
+    }
+    return const Color(0xFFEF5350);
+  }
+
+  Color _getStatAttendanceColor(int attendance) {
+    if (attendance >= 90) {
+      return const Color(0xFF4CAF50);
+    }
+    if (attendance >= 70) {
+      return const Color(0xFFFFA000);
+    }
+    return const Color(0xFFEF5350);
+  }
+
+  Widget _buildTabButton(String text, bool isActive, bool isGroupTabForAction) {
+    return ElevatedButton(
+      onPressed: () => _switchTab(isGroupTabForAction),
+      style: ElevatedButton.styleFrom(
+        backgroundColor:
+            isActive ? Theme.of(context).primaryColor : Colors.grey[200],
+        foregroundColor: isActive ? Colors.white : Colors.black54,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        elevation: isActive ? 2 : 0,
+      ),
+      child: Text(text,
+          style: TextStyle(
+              fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+              fontSize: 14)),
     );
   }
 }
