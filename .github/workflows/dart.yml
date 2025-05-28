@@ -7,35 +7,66 @@ jobs:
   build-ios:
     name: 🎉 iOS Build
     runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v3
+    permissions:
+      contents: write # Необходимо для git push
 
-      - uses: subosito/flutter-action@v2
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          # Если вы хотите коммитить от имени специального пользователя,
+          # а не GITHUB_TOKEN, вам понадобится Personal Access Token (PAT)
+          # с правами на запись в репозиторий и указать его здесь:
+          # token: ${{ secrets.YOUR_PAT_WITH_REPO_WRITE_ACCESS }}
+          # По умолчанию используется GITHUB_TOKEN, который имеет права
+          # на текущий репозиторий, если permissions установлены.
+          fetch-depth: 0 # Нужно для git push, чтобы иметь полную историю
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
           architecture: x64
-      - run: flutter pub get
 
-      - run: pod repo update
+      - name: Get Flutter dependencies
+        run: flutter pub get
+
+      - name: Update CocoaPods repositories
+        run: pod repo update
         working-directory: ios
 
-      - run: flutter build ios --release --no-codesign
+      - name: Build iOS (release, no codesign)
+        run: flutter build ios --release --no-codesign
 
-      - run: mkdir Payload
+      - name: Create Payload directory
+        run: mkdir Payload
         working-directory: build/ios/iphoneos
 
-      - run: mv Runner.app/ Payload
+      - name: Move Runner.app to Payload
+        run: mv Runner.app/ Payload
         working-directory: build/ios/iphoneos
 
-      - name: Zip output
+      - name: Zip output to IPA
         run: zip -qq -r -9 FlutterIpaExport.ipa Payload
         working-directory: build/ios/iphoneos
 
-      - name: Upload binaries to release
-        uses: svenstaro/upload-release-action@v2
-        with:
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: build/ios/iphoneos/FlutterIpaExport.ipa
-          tag: v1.0
-          overwrite: true
-          body: 'This is first release'
+      - name: Create builds directory in repository
+        run: mkdir -p builds # -p создает, если не существует, и не выдает ошибку, если уже есть
+
+      - name: Move IPA to builds directory
+        run: mv build/ios/iphoneos/FlutterIpaExport.ipa builds/FlutterIpaExport.ipa
+
+      - name: Commit and Push IPA file
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git add builds/FlutterIpaExport.ipa
+          # Проверяем, есть ли изменения для коммита
+          if git diff --staged --quiet; then
+            echo "No changes to commit in builds/FlutterIpaExport.ipa."
+          else
+            git commit -m "CI: Add/Update iOS build artifact (FlutterIpaExport.ipa)"
+            # Указываем ветку, на которую пушить (обычно та же, что и вызвала workflow)
+            # GITHUB_REF_NAME содержит имя ветки или тега
+            git push origin HEAD:${{ github.ref_name }}
+          fi
